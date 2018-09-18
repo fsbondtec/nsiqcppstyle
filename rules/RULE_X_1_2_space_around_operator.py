@@ -75,18 +75,30 @@ def RunRule(lexer, contextStack) :
     if t.type in operator :
         t2 = lexer.PeekNextToken()
         t3 = lexer.PeekPrevToken()
-        t4 = lexer.PeekPrevTokenSkipWhiteSpaceAndCommentAndPreprocess();        
-        t5 = lexer.PeekPrevTokenSkipWhiteSpaceAndCommentAndPreprocess(3);
+        t4 = lexer.PeekPrevTokenSkipWhiteSpaceAndCommentAndPreprocess();
         
-        # move constructor --> accept form "Foo(Foo&& other)"
-        if t.type == "LAND" and t4 != None and t5 != None and t4.value == t5.value:
-            if t3.type in ["SPACE", "LINEFEED", "PREPROCESSORNEXT"]:
-                nsiqcppstyle_reporter.Error(t, __name__,
-                          "No Space Before move operator in '%s'" % t.value)
-            if t2.type not in ["SPACE", "LINEFEED", "PREPROCESSORNEXT"]:
-                nsiqcppstyle_reporter.Error(t, __name__,
-                          "Provide spaces after move operator '%s'" % t.value)
-            return
+        # move constructor
+        if t.type == "LAND" and t4 != None:
+            t5 = lexer.PeekPrevTokenSkipWhiteSpaceAndCommentAndPreprocess(2);
+            
+            isMoveCons = False
+            if (t5 != None and t5.type == "LPAREN"):
+                t6 = lexer.PeekPrevTokenSkipWhiteSpaceAndCommentAndPreprocess(3);
+                if (t6 != None and t6.type == "FUNCTION" and t4.value == t6.value):
+                    # move copy constructor --> accept form "Foo(Foo&& other)"
+                    isMoveCons = True
+                t6 = lexer.PeekPrevTokenSkipWhiteSpaceAndCommentAndPreprocess(4);
+                if (t6 != None and t6.type == "FUNCTION" and t6.value == "operator"):
+                    # move assign operator --> accept form "Foo::operator=(Foo&& other)"
+                    isMoveCons = True
+            if t2 != None and t3 != None and isMoveCons:
+                if t3.type in ["SPACE", "LINEFEED", "PREPROCESSORNEXT"]:
+                    nsiqcppstyle_reporter.Error(t, __name__,
+                              "No Space Before move operator in '%s'" % t.value)
+                if t2.type not in ["SPACE", "LINEFEED", "PREPROCESSORNEXT"]:
+                    nsiqcppstyle_reporter.Error(t, __name__,
+                              "Provide spaces after move operator '%s'" % t.value)
+                return
         
         if t2 != None and t3 != None  and (t4 == None or t4.type != "FUNCTION"):
             #if t.pp == True and t.type == "DIVIDE":

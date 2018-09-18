@@ -75,10 +75,22 @@ def RunRule(lexer, contextStack) :
     if t.type in operator :
         t2 = lexer.PeekNextToken()
         t3 = lexer.PeekPrevToken()
-        t4 = lexer.PeekPrevTokenSkipWhiteSpaceAndCommentAndPreprocess();
+        t4 = lexer.PeekPrevTokenSkipWhiteSpaceAndCommentAndPreprocess();        
+        t5 = lexer.PeekPrevTokenSkipWhiteSpaceAndCommentAndPreprocess(3);
+        
+        # move constructor --> accept form "Foo(Foo&& other)"
+        if t.type == "LAND" and t4 != None and t5 != None and t4.value == t5.value:
+            if t3.type in ["SPACE", "LINEFEED", "PREPROCESSORNEXT"]:
+                nsiqcppstyle_reporter.Error(t, __name__,
+                          "No Space Before move operator in '%s'" % t.value)
+            if t2.type not in ["SPACE", "LINEFEED", "PREPROCESSORNEXT"]:
+                nsiqcppstyle_reporter.Error(t, __name__,
+                          "Provide spaces after move operator '%s'" % t.value)
+            return
+        
         if t2 != None and t3 != None  and (t4 == None or t4.type != "FUNCTION"):
             #if t.pp == True and t.type == "DIVIDE":
-			# no space for following types
+            # no space for following types
             if t.type == "DIVIDE" or t.type == "MODULO" or t.type == "PLUS":
                 return
             if t2.type not in ["SPACE", "LINEFEED", "PREPROCESSORNEXT"] or t3.type not in ["SPACE", "LINEFEED"] :

@@ -42,13 +42,14 @@ It only checks public, protected as well as private funcions.
      void FunctionD(); <== Don't care. it's defined in c file.
 """
 
-from nsiqcppstyle_rulehelper import  *
+from nsiqunittest.nsiqcppstyle_unittestbase import *
+from nsiqcppstyle_rulehelper import *
 from nsiqcppstyle_rulemanager import *
 
 
-def RunRule(lexer, fullName, decl, contextStack, context) :
+def RunRule(lexer, fullName, decl, contextStack, context):
     ext = lexer.filename[lexer.filename.rfind("."):]
-    if ext == ".h" :
+    if ext == ".h":
         upperBlock = contextStack.SigPeek()
 
         t = lexer.GetCurToken()
@@ -57,103 +58,110 @@ def RunRule(lexer, fullName, decl, contextStack, context) :
         t2 = lexer.GetPrevTokenInType("COMMENT")
         lexer.PopTokenIndex()
         lexer.PushTokenIndex()
-        t3 = lexer.GetPrevTokenInTypeList(["SEMI", "PREPROCESSOR"], False, True)
+        t3 = lexer.GetPrevTokenInTypeList(
+            ["SEMI", "PREPROCESSOR"], False, True)
         lexer.PopTokenIndex()
-        if t2 != None and t2.additional == "DOXYGEN" :
-            if t3 == None or t2.lexpos > t3.lexpos :
+        if t2 is not None and t2.additional == "DOXYGEN":
+            if t3 is None or t2.lexpos > t3.lexpos:
                 return
         nsiqcppstyle_reporter.Error(t, __name__,
-              "Doxygen Comment should be provided in front of function (%s) in header." % fullName)
+                                    "Doxygen Comment should be provided in front of function (%s) in header." % fullName)
+
+
 ruleManager.AddFunctionNameRule(RunRule)
 
 
-def RunTypeScopeRule(lexer, contextStack) :
+def RunTypeScopeRule(lexer, contextStack):
     t = lexer.GetCurToken()
-    if t.type in ["PUBLIC", "PRIVATE", "PROTECTED"] :
+    if t.type in ["PUBLIC", "PRIVATE", "PROTECTED"]:
         curContext = contextStack.SigPeek()
         if curContext.type in ["CLASS_BLOCK", "STRUCT_BLOCK"]:
             curContext.additional = t.type
 
+
 ruleManager.AddTypeScopeRule(RunTypeScopeRule)
 
 
-
-
-###########################################################################################
+##########################################################################
 # Unit Test
-###########################################################################################
+##########################################################################
 
-from nsiqunittest.nsiqcppstyle_unittestbase import *
+
 class testRule(nct):
     def setUpRule(self):
         ruleManager.AddFunctionNameRule(RunRule)
         ruleManager.AddTypeScopeRule(RunTypeScopeRule)
+
     def test1(self):
         self.Analyze("thisfile.h",
-"""
+                     """
 void FunctionA();
 """)
-        assert CheckErrorContent(__name__)
+        self.ExpectError(__name__)
+
     def test2(self):
         self.Analyze("thisfile.h",
-"""
+                     """
 /*
  *
  */
 extern void FunctionB();
 """)
-        assert CheckErrorContent(__name__)
+        self.ExpectError(__name__)
+
     def test3(self):
         self.Analyze("thisfile.h",
-"""
+                     """
 class A {
 public:
     void ~A();
 }
 """)
-        assert CheckErrorContent(__name__)
+        self.ExpectError(__name__)
+
     def test4(self):
         self.Analyze("thisfile.h",
-"""
+                     """
 class J {
 public :
     /** HELLO */
     A();
 }
 """)
-        assert not CheckErrorContent(__name__)
+        self.ExpectSuccess(__name__)
+
     def test5(self):
         self.Analyze("thisfile.h",
-"""
+                     """
 /*
  *
  */
  void FunctionB() {
 }
 """)
-        assert CheckErrorContent(__name__)
+        self.ExpectError(__name__)
 
     def test6(self):
         self.Analyze("thisfile.h",
-"""
+                     """
 int a;
  void FunctionB();
 """)
-        assert CheckErrorContent(__name__)
+        self.ExpectError(__name__)
 
     def test7(self):
         self.Analyze("thisfile.h",
-"""
+                     """
 /**
  *
  */
 extern void FunctionB();
 """)
-        assert not CheckErrorContent(__name__)
+        self.ExpectSuccess(__name__)
 
     def test8(self):
         self.Analyze("thisfile.h",
-"""
+                     """
 class J {
 protected :
     /** HELLO */
@@ -164,89 +172,89 @@ private :
     }
 }
 """)
-        assert CheckErrorContent(__name__)
+        self.ExpectError(__name__)
 
     def test9(self):
         self.Analyze("thisfile.h",
-"""
+                     """
 ///
 extern void FunctionB();
 """)
-        assert CheckErrorContent(__name__)
+        self.ExpectError(__name__)
 
     def test10(self):
         self.Analyze("thisfile.h",
-"""
+                     """
 class J {
 public :
     /// HELLO
     A();
 }
 """)
-        assert CheckErrorContent(__name__)
+        self.ExpectError(__name__)
 
     def test11(self):
         self.Analyze("thisfile.h",
-"""
+                     """
 extern void FunctionB();  ///< HELLO
 """)
-        assert CheckErrorContent(__name__)
+        self.ExpectError(__name__)
 
     def test12(self):
         self.Analyze("thisfile.h",
-"""
+                     """
 class J {
 public :
     A();  ///< HELLO
 }
 """)
-        assert CheckErrorContent(__name__)
+        self.ExpectError(__name__)
 
     def test13(self):
         self.Analyze("thisfile.c",
-"""
+                     """
 void FunctionA();
 """)
-        assert not CheckErrorContent(__name__)
+        self.ExpectSuccess(__name__)
 
     def test14(self):
         self.Analyze("thisfile.h",
-"""
+                     """
 class J {
 protected :
     /** HELLO */
     A();
 }
 """)
-        assert not CheckErrorContent(__name__)
+        self.ExpectSuccess(__name__)
 
     def test15(self):
         self.Analyze("thisfile.h",
-"""
+                     """
 class J {
 private :
     /** HELLO */
     A();
 }
 """)
-        assert not CheckErrorContent(__name__)
+        self.ExpectSuccess(__name__)
 
     def test14(self):
         self.Analyze("thisfile.h",
-"""
+                     """
 class J {
 protected :
     A();
 }
 """)
-        assert CheckErrorContent(__name__)
+        self.ExpectError(__name__)
 
     def test15(self):
         self.Analyze("thisfile.h",
-"""
+                     """
 class J {
 private :
     A();
 }
 """)
-        assert CheckErrorContent(__name__)
+        self.ExpectError(__name__)

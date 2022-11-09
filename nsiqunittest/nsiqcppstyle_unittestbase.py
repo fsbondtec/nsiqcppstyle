@@ -26,33 +26,49 @@
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 import nsiqcppstyle_checker
+from nsiqcppstyle_outputer import _consoleOutputer as console
 import unittest
 import nsiqcppstyle_rulemanager
 import nsiqcppstyle_reporter
 import nsiqcppstyle_state
 
 errors = []
-def AddError(err):
-    errors.append(err)
 
-def CheckErrorContent(msg):
-    for err in errors :
-        if err[1] == msg :
-            return True
-    return False
 
 def MockError(token, category, message):
-    AddError((token, category, message))
-    #print token, category, message
+    global errors
+    errors.append((token, category, message))
+    # print token, category, message
+
 
 class nct(unittest.TestCase):
     def setUp(self):
         nsiqcppstyle_rulemanager.ruleManager.ResetRules()
         nsiqcppstyle_rulemanager.ruleManager.ResetRegisteredRules()
-        nsiqcppstyle_state._nsiqcppstyle_state.verbose = True
+        console.SetLevel(console.Level.Verbose)
         nsiqcppstyle_reporter.Error = MockError
         self.setUpRule()
         global errors
         errors = []
+
     def Analyze(self, filename, data):
-        nsiqcppstyle_checker.ProcessFile(nsiqcppstyle_rulemanager.ruleManager, filename, data)
+        nsiqcppstyle_checker.ProcessFile(
+            nsiqcppstyle_rulemanager.ruleManager, filename, data)
+
+    def ExpectError(self, msg):
+        result = self._CheckErrorContent(msg)
+        # Error with message
+        self.assertTrue(result, "Expected error but got none")
+
+    def ExpectSuccess(self, msg):
+        global errors
+        result = self._CheckErrorContent(msg)
+        # Error with message
+        self.assertFalse(result, "Expected no error but got: " + str(errors))
+
+    def _CheckErrorContent(self, msg):
+        global errors
+        for err in errors:
+            if err[1] == msg:
+                return True
+        return False

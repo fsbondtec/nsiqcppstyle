@@ -1,4 +1,4 @@
-#!/usr/bin/env python2
+#!/usr/bin/env python
 #
 # Copyright (c) 2009 NHN Inc. All rights reserved.
 # Redistribution and use in source and binary forms, with or without
@@ -28,36 +28,30 @@
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #
 import getopt
-import os  # @UnusedImport
 import re
-import sys  # @UnusedImport
 import copy
 import nsiqcppstyle_checker
+from nsiqcppstyle_outputer import _consoleOutputer as console
 import nsiqcppstyle_state
 import nsiqcppstyle_rulemanager
 import nsiqcppstyle_reporter
 import updateagent.agent
-from nsiqcppstyle_util import *  # @UnusedWildImport
-try:
-    set()
-except NameError:
-    from sets import Set as set
+from nsiqcppstyle_util import *
 
-version = "0.2.2.13"
-####################################################################################################
+version = "0.3.1"
+##########################################################################
 title = "nsiqcppstyle: N'SIQ Cpp Style ver " + version + "\n"
 
 
 def ShowMessageAndExit(msg, usageOutput=True):
-    print >> sys.stderr, msg
+    console.Err.Error(msg)
     if usageOutput:
         Usage()
     sys.exit(-1)
 
 
 def Usage():
-    print \
-        """
+    print("""
 ======================================================================================
 Usage: nsiqcppstyle [Options]
            targetdirectory
@@ -74,8 +68,12 @@ Usage: nsiqcppstyle [Options]
   -o path       Set the output path. It's only applied when the output is csv or xml.
   -f path       Set the filefilter path. If not provided, it uses the default filterpath
                 (target/filefilter.txt)
-                If you provide the file path(not folder path) for the target,
+                If you provide the file path (not a folder path) for the target,
                 -f option should be provided.
+  --filter-string=<filter string>
+                A single, valid filter file line.  This option may be repeated multiple
+                times.  Enables specifying the contents of a filter file without needing 
+                to create one (e.g., in a read-only file system)
   --var=key: value,key: value
                 provide the variables to customize the rule behavior.
   --list-rules / -r  Show all rules available.
@@ -86,11 +84,12 @@ Usage: nsiqcppstyle [Options]
                 that each tool recognizes.
                 csv and xml outputs the result on the file "nsiqcppstyle_result.csv"
                 "nsiqcppstyle_result.xml" respectively, if you don't provide -o option.
-  --ci          Continuous Integration mode. If this mode is on, this tool only report summary.
+  --ci          Continuous Integration mode. If this mode is on, this tool only reports summary.
+  --quiet / -q  Quiet mode. If this mode is on, this tool only reports errors.
 
 * nsiqcppstyle reports coding standard violations on C/C++ source code.
 * In default, it doesn't apply any rules on the source. If you want to apply rule,
-  they are should be provided in the filefilter.txt file in following form.
+  they should be provided in the filefilter.txt file in following form.
   ~ RULENAME
 
 * You can customize the rule behavior by providing --var=key: value pair when executing
@@ -123,42 +122,42 @@ Usage: nsiqcppstyle [Options]
   And It checks only new and modified file. Please refer the nsiqcollector
   to generate basefilelist.txt.
 
-"""
+""")
     sys.exit(0)
 
 
 def main(argv=None):
     global filename
+
     if argv is None:
         argv = sys.argv
     try:
         try:
-            opts, args = getopt.getopt(argv[1: ], "o: s: m: hvrf: ", ["help", "csv",
-                "output=", "list_rules", "verbose=", "show-url", "no-update",
-                "ci", "var=", "noBase"])
-        except getopt.error, msg:
+            opts, args = getopt.getopt(argv[1:], "o: s: hqvrf: ", ["help", "csv",
+                                                                      "output=", "list_rules", "verbose=", "show-url", "no-update",
+                                                                      "ci", "quiet", "var=", "noBase", "filter-string="])
+        except getopt.error as msg:
             raise ShowMessageAndExit(msg)
-            return 0
 
         outputPath = ""
         _nsiqcppstyle_state.output_format = "vs7"
         filterScope = "default"
         filterPath = ""
-        ciMode = False
+        filterStringList = []
         noBase = False
         varMap = {}
         extLangMap = {
-            "Html": set(["htm", "html"]),
-            "Java": set(["java"]),
-            "Javascript/ActionScript": set(["js", "as"]),
-            "JSP/PHP": set(["jsp", "php", "JSP", "PHP"]),
-            "C/C++": set(["cpp", "h", "c", "hxx", "cxx", "hpp", "cc", "hh", "m", "mm"])
-            }
+            "Html": {"htm", "html"},
+            "Java": {"java"},
+            "Javascript/ActionScript": {"js", "as"},
+            "JSP/PHP": {"jsp", "php", "JSP", "PHP"},
+            "C/C++": {"cpp", "h", "c", "hxx", "cxx", "hpp", "cc", "hh", "m", "mm"}
+        }
 
         updateNsiqCppStyle = False
         for o, a in opts:
             if o in ("-h", "--help"):
-                print title
+                print(title)
                 Usage()
             elif o in ("-r", "--list-rules"):
                 ShowRuleList()
@@ -170,62 +169,79 @@ def main(argv=None):
                 updateNsiqCppStyle = False
             elif o == "-f":
                 filterPath = a.strip().replace("\"", "")
+            elif o == "--filter-string":
+                filterStringList.append(a)
             elif o == "-v":
-                EnableVerbose()
+                console.SetLevel(console.Level.Verbose)
             elif o == "-s":
                 filterScope = a
             elif o == "--show-url":
                 _nsiqcppstyle_state.showUrl = True
             elif o == '--output':
                 if not a in ('emacs', 'vs7', 'csv', 'xml', 'eclipse'):
-                    print title
-                    ShowMessageAndExit('The only allowed output formats are emacs, vs7 and csv.')
+                    print(title)
+                    ShowMessageAndExit(
+                        'The only allowed output formats are emacs, vs7 and csv.')
                 _nsiqcppstyle_state.output_format = a
             elif o == "--var":
-                varMap = GetCustomKeyValueMap(a, "--var="+a)
+                varMap = GetCustomKeyValueMap(a, "--var=" + a)
             elif o == "--ci":
-                ciMode = True
+                console.SetLevel(console.Level.Ci)
+            elif o in ("-q", "--quiet"):
+                console.SetLevel(console.Level.Error)
             elif o == "--noBase":
                 noBase = True
 
-        print title
+        console.Out.Ci(title)
         runtimePath = GetRuntimePath()
         sys.path.append(runtimePath)
         if updateNsiqCppStyle:
+            console.Out.Ci(console.Separator)
             try:
-                print "======================================================================================"
                 updateagent.agent.Update(version)
-            except Exception, e:
-                print e
+            except Exception as e:
+                console.Out.Error(e)
 
         targetPaths = GetRealTargetPaths(args)
+        if len(targetPaths) == 0:
+            ShowMessageAndExit("No target paths provided")
+
         multipleTarget = True
         if len(targetPaths) == 1:
             multipleTarget = False
 
-        #If multiple target
+        # Check: "-f" and "--filter-string" are mutually exclusive
+        if filterPath and filterStringList:
+            ShowMessageAndExit("'-f' and '--filter-string' command line options are mutually exclusive")
+
+        # If multiple target
         if multipleTarget:
             if len(outputPath) == 0:
-                ShowMessageAndExit("OutputPath(-o) should be provided to analyze multiple targets")
+                ShowMessageAndExit(
+                    "OutputPath(-o) should be provided to analyze multiple targets")
         else:
             outputPath = GetOutputPath(targetPaths[0], outputPath)
         ruleManager = nsiqcppstyle_rulemanager.ruleManager
 
         cExtendstionSet = extLangMap.get("C/C++")
 
-        nsiqcppstyle_reporter.PrepareReport(outputPath, _nsiqcppstyle_state.output_format)
+        nsiqcppstyle_reporter.PrepareReport(outputPath,
+                                            _nsiqcppstyle_state.output_format)
         analyzedFiles = []
-        for targetPath in targetPaths :
+        filter = None
+
+        for targetPath in targetPaths:
             nsiqcppstyle_reporter.StartTarget(targetPath)
             extLangMapCopy = copy.deepcopy(extLangMap)
             targetName = os.path.basename(targetPath)
-            print "======================================================================================"
-            print "=  Analyzing %s " % targetName
+            console.Out.Ci(console.Separator)
+            console.Out.Ci("=  Analyzing %s " % targetName)
 
             if filterPath != "":
-                filefilterPath= filterPath
+                filefilterPath = filterPath
             elif os.path.isfile(targetPath):
-                filefilterPath = os.path.join(os.path.dirname(targetPath), "filefilter.txt")
+                filefilterPath = os.path.join(os.path.dirname(targetPath),
+                                              "filefilter.txt")
             else:
                 filefilterPath = os.path.join(targetPath, "filefilter.txt")
             if (noBase):
@@ -234,77 +250,95 @@ def main(argv=None):
                 basefilelist = BaseFileList(targetPath)
 
             # Get Active Filter
-            filterManager = FilterManager(filefilterPath, extLangMapCopy, varMap, filterScope)
+            filterManager = FilterManager(filefilterPath, filterStringList, extLangMapCopy,
+                                          varMap, filterScope)
 
             if filterScope != filterManager.GetActiveFilter().filterName:
-                print "\n%s filter scope is not available. Instead, use %s\n" % (filterScope, filterManager.GetActiveFilter().filterName)
+                console.Out.Error("\n%s filter scope is not available. Instead, use %s\n"
+                                  % (filterScope, filterManager.GetActiveFilter().filterName))
 
             filter = filterManager.GetActiveFilter()
             # Load Rule
 
             if len(filter.nsiqCppStyleRules) == 0:
-                ShowMessageAndExit("Error!. Rules must be set in %s" % filefilterPath, False)
+                ShowMessageAndExit("Error!. Rules must be set in %s" % filefilterPath,
+                                   False)
                 continue
 
-            ruleManager.LoadRules(filter.nsiqCppStyleRules, not ciMode)
+            ruleManager.LoadRules(filter.nsiqCppStyleRules)
+            ruleManager.RunSessionStartRules()
+
             _nsiqcppstyle_state.checkers = filter.nsiqCppStyleRules
             _nsiqcppstyle_state.varMap = filter.varMap
-            nsiqcppstyle_reporter.ReportRules(ruleManager.availRuleNames, filter.nsiqCppStyleRules)
-            if not ciMode:
-                print filter.to_string()
-            print "======================================================================================"
+            nsiqcppstyle_reporter.ReportRules(ruleManager.availRuleNames,
+                                              filter.nsiqCppStyleRules)
 
-            if VerboseMode(): print "* run nsiqcppstyle analysis on %s" % targetName
+            console.Out.Info(filter.to_string())
+            console.Out.Ci(console.Separator)
+            console.Out.Verbose(
+                "* run nsiqcppstyle analysis on %s" %
+                targetName)
 
             # if the target is file, analyze it without condition
             if os.path.isfile(targetPath):
-                fileExtension = targetPath[targetPath.rfind('.') + 1: ]
+                fileExtension = targetPath[targetPath.rfind('.') + 1:]
                 if fileExtension in cExtendstionSet:
-                    ProcessFile(ruleManager, targetPath, analyzedFiles, ciMode)
+                    ProcessFile(ruleManager, targetPath, analyzedFiles)
 
-            # if the target is directory, analyze it with filefilter and basefilelist
-        else:
-            for root, dirs, files in os.walk(targetPath):
-                if '.cvs' in dirs:
-                    dirs.remove('.cvs')
-                if '.svn' in dirs:
-                    dirs.remove('.svn')
-                if '.git' in dirs:
-                    dirs.remove('.git')
-                if '.hg' in dirs:
-                    dirs.remove('.hg')
-                for fname in files:
-                    fileExtension = fname[fname.rfind('.') + 1: ]
-                    eachFile = os.path.join(root, fname)
-                    basePart = eachFile[len(targetPath): ]
-                    if fileExtension in cExtendstionSet and basefilelist.IsNewOrChanged(eachFile) and filter.CheckFileInclusion(basePart):
-                        nsiqcppstyle_reporter.StartFile(os.path.dirname(basePart), fname)
-                        ProcessFile(ruleManager, eachFile, analyzedFiles, ciMode)
-                        nsiqcppstyle_reporter.EndFile()
+            # if the target is directory, analyze it with filefilter and
+            # basefilelist
+            else:
+                for root, dirs, files in os.walk(targetPath):
+                    if '.cvs' in dirs:
+                        dirs.remove('.cvs')
+                    if '.svn' in dirs:
+                        dirs.remove('.svn')
+                    if '.git' in dirs:
+                        dirs.remove('.git')
+                    if '.hg' in dirs:
+                        dirs.remove('.hg')
+                    for fname in files:
+                        fileExtension = fname[fname.rfind('.') + 1:]
+                        eachFile = os.path.join(root, fname)
+                        basePart = eachFile[len(targetPath):]
+                        if (fileExtension in cExtendstionSet and
+                                basefilelist.IsNewOrChanged(eachFile) and
+                                filter.CheckFileInclusion(basePart)):
+                            nsiqcppstyle_reporter.StartFile(os.path.dirname(basePart),
+                                                            fname)
+                            ProcessFile(ruleManager, eachFile, analyzedFiles)
+                            nsiqcppstyle_reporter.EndFile()
             ruleManager.RunProjectRules(targetPath)
             nsiqcppstyle_reporter.EndTarget()
 
-        nsiqcppstyle_reporter.ReportSummaryToScreen(analyzedFiles, _nsiqcppstyle_state, filter, ciMode)
+        nsiqcppstyle_reporter.ReportSummaryToScreen(analyzedFiles,
+                                                    _nsiqcppstyle_state, filter)
         nsiqcppstyle_reporter.CloseReport(_nsiqcppstyle_state.output_format)
+        ruleManager.RunSessionEndRules()
         return _nsiqcppstyle_state.error_count
 
-    except Usage, err:
-        print >> sys.stderr, err.msg
-        print >> sys.stderr, "for help use --help"
+    except Exception as err:
+        console.Err.Error(err)
+        console.Err.Error("for help use --help")
         sys.exit(-1)
 
 
-#################################################################################################3
+# 3
 
-def ProcessFile(ruleManager, file, analyzedFiles, ciMode):
-    if not ciMode: print "Processing: ", file
+def ProcessFile(ruleManager, file, analyzedFiles):
+    console.Out.Info("Processing: ", file)
     nsiqcppstyle_checker.ProcessFile(ruleManager, file)
     analyzedFiles.append(file)
 
-def Update():
-    updateagent.agent.Update("http: //nsiqcppstyle.nsiq.nhncorp.com/update", version)
 
-csvResult = []
+def Update():
+    console.Out.Error("Development in progress. Please check manually")
+    """
+    updateagent.agent.Update("http: //nsiqcppstyle.nsiq.nhncorp.com/update",
+                             version)
+    """
+
+
 def GetOutputPath(outputBasePath, outputPath):
     "Returns the LOC and complexity result path"
     if outputPath == "":
@@ -316,7 +350,7 @@ def GetOutputPath(outputBasePath, outputPath):
 
 
 def GetRealTargetPaths(args):
-    "extract real target path list from args"
+    """extract real target path list from args"""
     if len(args) == 0:
         ShowMessageAndExit("Error!: Target directory must be provided")
     targetPaths = []
@@ -325,81 +359,97 @@ def GetRealTargetPaths(args):
         targetPaths.append(realPath)
 #       CheckPathPermission(realPath, "Target directory")
         if not os.path.exists(realPath):
-            ShowMessageAndExit("Error!: Target directory %s is not exists" % eachTarget)
+            ShowMessageAndExit(
+                "Error!: Target directory %s does not exist" % eachTarget)
     return targetPaths
 
-#################################################################################################3
-
-def EnableVerbose():
-    _nsiqcppstyle_state.verbose = True
-
-def VerboseMode():
-    return _nsiqcppstyle_state.verbose
-
-
+##########################################################################
 
 ##############################################################################
 # Filter Manager
 # - Load Filter
 ##############################################################################
 
+
 class FilterManager:
     defaultFilterName = "default"
+    singleQuote = "'"
+    doubleQuote = '"'
 
-    def __init__(self, fileFilterPath, extLangMap, varMap, activeFilterName):
+    def _ProcessFilterLine(self, filter, raw_line):
+        # <raw_line> may be enclosed in single/double quotes, and
+        # the inner string may start/end with whitespace, clean it
+        # up before using it.
+        line = RemoveOuterQuotes(raw_line)
+
+        if line.startswith("#") or len(line) == 0:
+            # Comment or empty line, just return
+            return
+        if line.startswith("*"):
+            if len(line[1:].strip()) != 0:
+                filterName = line[1:].strip()
+                filter = self.GetFilter(filterName)
+        elif line.startswith("="):
+            if (len(line[1:].strip()) != 0):
+                filter.AddLangMap(line[1:].strip(),
+                                  "\"" + line + "\" of filefilter.txt")
+        elif line.startswith("~"):
+            if (len(line[1:].strip()) != 0):
+                filter.AddCppChecker(line[1:].strip())
+        elif line.startswith("+"):
+            arg = line[1:].strip()
+            if arg != "":
+                filter.AddInclude(arg)
+        elif line.startswith("-"):
+            arg = line[1:].strip()
+            if arg != "":
+                filter.AddExclude(arg)
+        elif line.startswith("%"):
+            arg = line[1:].strip()
+            if arg != "":
+                filter.AddVarMap(arg, "\"" + arg + "\" of filefilter.txt")
+
+        return filter
+
+    def __init__(self, fileFilterPath, filterStringList, extLangMap, varMap, activeFilterName):
         self.fileFilterPath = fileFilterPath
         self.baseExtLangMap = extLangMap
         self.baseVarMap = varMap
-        self.filterMap = {FilterManager.defaultFilterName: self.CreateNewFilter(FilterManager.defaultFilterName)}
+        self.filterMap = {FilterManager.defaultFilterName:
+                          self.CreateNewFilter(FilterManager.defaultFilterName)}
         filter = self.GetFilter(self.defaultFilterName)
         self.activeFilterName = self.defaultFilterName
 
+        if filterStringList:
+            for line in filterStringList:
+                filter = self._ProcessFilterLine(filter, line)
+
         f = self.GetFilterFile(fileFilterPath)
-        if f == None:
+        if f:
+            for line in f.readlines():
+                filter = self._ProcessFilterLine(filter, line)
+            f.close()
+
+        if len(filter.nsiqCppStyleRules) == 0:
             filter.AddExclude("/.svn/")
             filter.AddExclude("/.cvs/")
             return
 
-        for line in f.readlines():
-            line = line.strip()
-            if line.startswith("#") or len(line) == 0:
-                continue
-            if line.startswith("*"):
-                if (len(line[1: ].strip()) != 0):
-                    filterName = line[1: ].strip()
-                    filter = self.GetFilter(filterName)
-            elif line.startswith("="):
-                if (len(line[1: ].strip()) != 0):
-                    filter.AddLangMap(line[1: ].strip(), "\"" + line + "\" of filefilter.txt")
-            elif line.startswith("~"):
-                if (len(line[1: ].strip()) != 0):
-                    filter.AddCppChecker(line[1: ].strip())
-            elif line.startswith("+"):
-                arg = line[1: ].strip()
-                if arg != "": filter.AddInclude(arg)
-            elif line.startswith("-"):
-                arg = line[1: ].strip()
-                if arg != "": filter.AddExclude(arg)
-            elif line.startswith("%"):
-                arg = line[1: ].strip()
-                if arg != "": filter.AddVarMap(arg, "\"" + arg + "\" of filefilter.txt")
-        f.close()
         for eachMapKey in self.filterMap.keys():
             self.filterMap[eachMapKey].AddExclude("/.cvs/")
             self.filterMap[eachMapKey].AddExclude("/.svn/")
 
-        if (self.filterMap.has_key(activeFilterName)):
+        if (activeFilterName in self.filterMap):
             self.activeFilterName = activeFilterName
 
     def CreateNewFilter(self, filterName):
-        return Filter(filterName, copy.deepcopy(self.baseExtLangMap), copy.deepcopy(self.baseVarMap))
+        return Filter(filterName, copy.deepcopy(self.baseExtLangMap),
+                      copy.deepcopy(self.baseVarMap))
 
     def GetFilter(self, filterName):
-        if self.filterMap.has_key(filterName):
-            return self.filterMap[filterName]
-        else:
+        if not filterName in self.filterMap:
             self.filterMap[filterName] = self.CreateNewFilter(filterName)
-            return self.filterMap[filterName]
+        return self.filterMap[filterName]
 
     def GetActiveFilter(self):
         return self.GetFilter(self.activeFilterName)
@@ -407,7 +457,7 @@ class FilterManager:
     def GetFilterFile(self, filterfile):
         if not os.path.exists(filterfile):
             return None
-        f = file(filterfile, 'r')
+        f = open(filterfile, 'r')
         return f
 
 ##############################################################################
@@ -415,12 +465,15 @@ class FilterManager:
 # - Represent each Filter
 # - Check if the file is included or not
 ##############################################################################
+
+
 class Filter:
     """
      Filter
      - Represent each Filter
      - Check if the file is included or not
     """
+
     def __init__(self, filterName, baseExtLangMap, baseVarMap):
         self.extLangMap = baseExtLangMap
         self.varMap = baseVarMap
@@ -439,19 +492,22 @@ Current File extension and Language Settings
         count = 1
         for eachfilter in self.filefilter:
             filterment = ""
-            if eachfilter[0]: filterment = "is included"
-            else: filterment = "is excluded"
+            if eachfilter[0]:
+                filterment = "is included"
+            else:
+                filterment = "is excluded"
             s = s + ("  %s. %s %s\n" % (count, eachfilter[1], filterment))
             count = count + 1
         return template % (self.filterName, s, self.GetLangString())
 
     def NormalizePath(self, eachFilter):
         replacedpath = eachFilter.replace("/", os.path.sep)
-        replacedpath = replacedpath.replace("\\\\", os.path.sep);
-        return replacedpath.replace("\\", os.path.sep);
+        replacedpath = replacedpath.replace("\\\\", os.path.sep)
+        return replacedpath.replace("\\", os.path.sep)
 
     def CheckExist(self, includeOrExclude, eachFilter, startwith):
-        return (self.filefilter.count([includeOrExclude, eachFilter, startwith]) == 1)
+        return (self.filefilter.count(
+            [includeOrExclude, eachFilter, startwith]) == 1)
 
     def AddInclude(self, eachFilter):
         self.AddFilter(True, eachFilter)
@@ -486,10 +542,11 @@ Current File extension and Language Settings
                 for eachExt in extSet:
                     count = count + 1
                     s = s + eachExt
-                    if count < setLen: s = s + ","
-                    else: s = s + "\n"
-        return s;
-
+                    if count < setLen:
+                        s = s + ","
+                    else:
+                        s = s + "\n"
+        return s
 
     def CheckFileInclusion(self, fileStr):
         eachfile = self.NormalizePath(fileStr)
@@ -504,24 +561,27 @@ Current File extension and Language Settings
         return inclusion
 
     def GetLangMap(self):
-        return self.extLangMap;
+        return self.extLangMap
 
     def AddLangMap(self, langMapString, where):
         langExtList = langMapString.split(",")
         for eachExt in langExtList:
             extLangPair = eachExt.split(": ")
             if len(extLangPair) != 2:
-                ShowMessageAndExit("Error!: The extension and language pair (%s) is incorrect in %s, please use LANGUAGENAME: EXTENSION style" % (langMapString, where))
+                ShowMessageAndExit(
+                    "Error!: The extension and language pair (%s) is incorrect in %s, please use LANGUAGENAME: EXTENSION style" %
+                    (langMapString, where))
             lang, ext = extLangPair
             self.extLangMap.get(lang).add(ext)
 
     def AddVarMap(self, keyValuePairString, where):
         varMap = GetCustomKeyValueMap(keyValuePairString, where)
         for eachVar in varMap.keys():
-            if self.varMap.has_key(eachVar):
+            if eachVar in self.varMap:
                 continue
             else:
                 self.varMap[eachVar] = varMap[eachVar]
+
 
 def GetCustomKeyValueMap(keyValuePair, where):
     varMap = {}
@@ -529,7 +589,9 @@ def GetCustomKeyValueMap(keyValuePair, where):
     for eachCustomKeyValue in customKeyValues:
         customKeyValuePair = eachCustomKeyValue.split(": ")
         if len(customKeyValuePair) != 2:
-            ShowMessageAndExit("Error!: The var key and value pair (%s) is incorrect in %s, please use KEY: VALUE style" % (keyValuePair, where))
+            ShowMessageAndExit(
+                "Error!: The var key and value pair (%s) is incorrect in %s, please use KEY: VALUE style" %
+                (keyValuePair, where))
         key, value = customKeyValuePair
         varMap[key] = value
     return varMap
@@ -537,28 +599,34 @@ def GetCustomKeyValueMap(keyValuePair, where):
 ##############################################################################
 # BaseFileList
 ##############################################################################
+
+
 class BaseFileList(object):
     """
      - Represent  basefilelist.txt state
      - It check if the current file and size pair is in the basefilelist.
     """
+
     def __init__(self, targetDir):
         self.baseFileList = {}
         if os.path.isdir(targetDir):
             fsrc = os.path.join(targetDir, "basefilelist.txt")
             if os.path.exists(fsrc):
-                f = file(fsrc)
-                for line in f.readlines():
-                    self.baseFileList[line.strip()] = True
+                with open(fsrc) as f:
+                    for line in f.readlines():
+                        self.baseFileList[line.strip()] = True
+
     def IsNewOrChanged(self, filename):
         item = os.path.basename(filename) + str(os.path.getsize(filename))
         return not self.baseFileList.get(item, False)
+
 
 class NullBaseFileList(object):
     """
      - Represent  basefilelist.txt state
      - It check if the current file and size pair is in the basefilelist.
     """
+
     def __init__(self):
         pass
 
@@ -568,24 +636,25 @@ class NullBaseFileList(object):
 
 def ShowRuleList():
     nsiqcppstyle_rulemanager.ruleManager.availRuleNames.sort()
-    for rule in  nsiqcppstyle_rulemanager.ruleManager.availRuleNames:
-        print "~", rule
+    for rule in nsiqcppstyle_rulemanager.ruleManager.availRuleNames:
+        if rule.startswith('RULE_'):
+            print("~", rule)
     sys.exit(1)
-
 
 
 def CheckPathPermission(path, folderrole):
     if not os.access(path, os.R_OK) and os.path.exists(path):
-        ShowMessageAndExit("Error!: %s  You should have read permission in %s." % (folderrole, path))
+        ShowMessageAndExit(
+            "Error!: %s  You should have read permission in %s." %
+            (folderrole, path))
     return True
 
-####################################################################################################
+##########################################################################
+
 
 _nsiqcppstyle_state = nsiqcppstyle_state._nsiqcppstyle_state
-
 
 
 if __name__ == "__main__":
     sys.path.append(GetRuntimePath())
     sys.exit(main())
-

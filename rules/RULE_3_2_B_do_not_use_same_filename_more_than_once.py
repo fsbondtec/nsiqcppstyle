@@ -18,6 +18,7 @@ Do not use same filenames more than once.
     testdir/stadfx.*
     testdir1/stdafx.*
 """
+from nsiqunittest.nsiqcppstyle_unittestbase import *
 from nsiqcppstyle_reporter import *  # @UnusedWildImport
 from nsiqcppstyle_rulemanager import *  # @UnusedWildImport
 import string
@@ -37,16 +38,15 @@ def RunRule(lexer, filename, dirname):
     else:
         filenameMap[filename].append(os.path.join(dirname, filename))
         nsiqcppstyle_reporter.Error(DummyToken(lexer.filename, "", 0, 0), __name__,
-            'Do not use same filename(%s) more than once. This filename is used in %s' % (filename, string.join(filenameMap[filename], ", ")))
+                                    'Do not use same filename(%s) more than once. This filename is used in %s' % (
+                                        filename, ", ".join(filenameMap[filename])))
+
 
 ruleManager.AddFileStartRule(RunRule)
 
-
-###########################################################################################
+##########################################################################
 # Unit Test
-###########################################################################################
-
-from nsiqunittest.nsiqcppstyle_unittestbase import *
+##########################################################################
 
 
 class testRule(nct):
@@ -61,7 +61,7 @@ class testRule(nct):
         """
         self.Analyze("test/thisfile.c", "")
         self.Analyze("test2/thisfile.c", "")
-        assert CheckErrorContent(__name__)
+        self.ExpectError(__name__)
 
     def test2(self):
         """
@@ -69,7 +69,7 @@ class testRule(nct):
         """
         self.Analyze("test/thisfile.c", "")
         self.Analyze("test/thisfile.h", "")
-        assert not CheckErrorContent(__name__)
+        self.ExpectSuccess(__name__)
 
     def test3(self):
         """
@@ -81,4 +81,4 @@ class testRule(nct):
         self.Analyze("test/main.c", "")
         self.Analyze("test2/main.c", "")
         self.Analyze("test/thisfile.h", "")
-        assert not CheckErrorContent(__name__)
+        self.ExpectSuccess(__name__)

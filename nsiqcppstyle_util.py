@@ -28,26 +28,43 @@
 import os
 import sys
 
+SINGLE_QUOTE = "'"
+DOUBLE_QUOTE = '"'
+
 def WeAreFrozen():
     return hasattr(sys, "frozen")
 
+
 def ModulePath():
     if WeAreFrozen():
-        return os.path.dirname(unicode(sys.executable, sys.getfilesystemencoding()))
-    return os.path.dirname(unicode(__file__, sys.getfilesystemencoding()))
+        return os.path.dirname(sys.executable)
+    return os.path.dirname(__file__)
 
-def GetRuntimePath() :
+
+def GetRuntimePath():
     "Return the path of this tool"
-    if (sys.platform == "win32") :
-        runtimePath = ModulePath();
-    else :
+    if (sys.platform == "win32"):
+        runtimePath = ModulePath()
+    else:
         modename = globals()['__name__']
         module = sys.modules[modename]
         runtimePath = os.path.dirname(module.__file__)
     return runtimePath
 
-def GetSystemKey() :
-    if (sys.platform == "win32") :
+
+def GetSystemKey():
+    if (sys.platform == "win32"):
         return "window"
-    else :
+    else:
         return "linux"
+
+
+def CmpObjects(a, b):
+    return (a > b) - (a < b)
+
+
+def RemoveOuterQuotes(raw_string):
+    final_string = raw_string.strip()
+    if final_string[0] == final_string[-1] and final_string[0] in [SINGLE_QUOTE, DOUBLE_QUOTE]:
+        final_string = final_string[1:-1].strip()
+    return final_string

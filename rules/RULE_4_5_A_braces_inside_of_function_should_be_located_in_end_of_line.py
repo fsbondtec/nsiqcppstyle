@@ -1,16 +1,16 @@
 """
 Braces inside of function definitions should be located in the end of line.
 
-== Violation == 
+== Violation ==
 
     void A() { <== Don't Care
-        for (;;) 
+        for (;;)
         { <== ERROR
         }
     }
-    class K() 
+    class K()
     { <== Don't Care
-        if (true) 
+        if (true)
         { <== Error
         }
     }
@@ -21,58 +21,65 @@ Braces inside of function definitions should be located in the end of line.
         for (;;) { <== OK
         }
     }
-    class K() 
+    class K()
     { <== Don't Care
         if (true) { <== OK
         }
     }
 """
-from nsiqcppstyle_rulehelper import  *
+from nsiqunittest.nsiqcppstyle_unittestbase import *
+from nsiqcppstyle_rulehelper import *
 from nsiqcppstyle_reporter import *
 from nsiqcppstyle_rulemanager import *
 
-def RunRule(lexer, contextStack) :
+
+def RunRule(lexer, contextStack):
 
     t = lexer.GetCurToken()
-    if t.type == "LBRACE" :
+    if t.type == "LBRACE":
         t2 = lexer.GetNextMatchingToken(True)
-        if t2 != None and t.lineno != t2.lineno : 
+        if t2 is not None and t.lineno != t2.lineno:
             prevToken = lexer.GetPrevTokenSkipWhiteSpaceAndCommentAndPreprocess()
-            #print contextStack.Peek()
-            if prevToken != None and prevToken.lineno != t.lineno and contextStack.Peek().type == "BRACEBLOCK":
-                nsiqcppstyle_reporter.Error(t, __name__, "Braces inside of function should be located in the next of previous token(%s)"%prevToken.value)
+            # print contextStack.Peek()
+            if prevToken is not None and prevToken.lineno != t.lineno and contextStack.Peek(
+            ).type == "BRACEBLOCK":
+                nsiqcppstyle_reporter.Error(
+                    t, __name__, "Braces inside of function should be located in the next of previous token(%s)" % prevToken.value)
+
 
 ruleManager.AddFunctionScopeRule(RunRule)
 
-###########################################################################################
+##########################################################################
 # Unit Test
-###########################################################################################
+##########################################################################
 
-from nsiqunittest.nsiqcppstyle_unittestbase import *
 
 class testRule(nct):
     def setUpRule(self):
-        ruleManager.AddFunctionScopeRule(RunRule)   
+        ruleManager.AddFunctionScopeRule(RunRule)
+
     def test1(self):
-        self.Analyze("thisfile.c","""
+        self.Analyze("thisfile.c", """
 void function() {
-    for (;;) 
+    for (;;)
     {
     }
 }
 """)
-        assert CheckErrorContent(__name__)
+        self.ExpectError(__name__)
+
     def test2(self):
-        self.Analyze("thisfile.c","""
+        self.Analyze("thisfile.c", """
 void function() {
-    a = 
+    a =
     {
     }
 }
 """)
-        assert CheckErrorContent(__name__)
+        self.ExpectError(__name__)
+
     def test3(self):
-        self.Analyze("thisfile.c","""
+        self.Analyze("thisfile.c", """
 void function() {
     a = {
     }
@@ -81,5 +88,4 @@ void function() {
     k = {}
 }
 """)
-        assert not CheckErrorContent(__name__)
-    
+        self.ExpectSuccess(__name__)

@@ -19,59 +19,62 @@ Only alphabets, numbers can be used for a cpp filename.
     testdir1/test_1.c <== Don't care. it's c file.
 """
 
-from nsiqcppstyle_rulehelper import  *
+from nsiqunittest.nsiqcppstyle_unittestbase import *
+from nsiqcppstyle_rulehelper import *
 from nsiqcppstyle_reporter import *
 from nsiqcppstyle_rulemanager import *
 
-def RunRule(lexer, filename, dirname) :
-    if Search("[_]", filename) and filename[filename.rfind("."):] in (".cpp", ".cxx", ".cc", ".mm") :
-        nsiqcppstyle_reporter.Error(DummyToken(lexer.filename, "", 0,0), __name__,
-                           "Do not use underbar for cpp file name (%s)." % filename)
+
+def RunRule(lexer, filename, dirname):
+    if Search("[_]", filename) and filename[filename.rfind("."):] in \
+            (".cpp", ".cxx", ".cc", ".mm"):
+        nsiqcppstyle_reporter.Error(DummyToken(lexer.filename, "", 0, 0), __name__,
+                                    "Do not use underbar for cpp file name (%s)." % filename)
+
 
 ruleManager.AddFileStartRule(RunRule)
 
-
-
-
-
-
-
-
-###########################################################################################
+##########################################################################
 # Unit Test
-###########################################################################################
+##########################################################################
 
-from nsiqunittest.nsiqcppstyle_unittestbase import *
+
 class testRule(nct):
     def setUpRule(self):
         ruleManager.AddFileStartRule(RunRule)
 
     def test1(self):
         self.Analyze("test/thisfile.cpp", "")
-        assert not CheckErrorContent(__name__)
+        self.ExpectSuccess(__name__)
+
     def test2(self):
         self.Analyze("test/this_file.c", "")
-        assert not CheckErrorContent(__name__)
+        self.ExpectSuccess(__name__)
+
     def test3(self):
         self.Analyze("test/thisfile.cxx", "")
-        assert not CheckErrorContent(__name__)
+        self.ExpectSuccess(__name__)
+
     def test4(self):
         self.Analyze("test/thisfile.cc", "")
-        assert not CheckErrorContent(__name__)
+        self.ExpectSuccess(__name__)
+
     def test5(self):
         self.Analyze("test/thisfile.mm", "")
-        assert not CheckErrorContent(__name__)
+        self.ExpectSuccess(__name__)
 
     def test6(self):
         self.Analyze("test/this_file.cxx", "")
-        assert CheckErrorContent(__name__)
+        self.ExpectError(__name__)
+
     def test7(self):
         self.Analyze("test/this_file.cpp", "")
-        assert CheckErrorContent(__name__)
+        self.ExpectError(__name__)
+
     def test8(self):
         self.Analyze("test/this_file.cc", "")
-        assert CheckErrorContent(__name__)
+        self.ExpectError(__name__)
+
     def test9(self):
         self.Analyze("test/this_file.mm", "")
-        assert CheckErrorContent(__name__)
-
+        self.ExpectError(__name__)

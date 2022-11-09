@@ -44,18 +44,21 @@ This rule detect following style file comment.
      * blar blar
      */
 """
+from nsiqunittest.nsiqcppstyle_unittestbase import *
 from nsiqcppstyle_rulehelper import *
 from nsiqcppstyle_reporter import *
 from nsiqcppstyle_rulemanager import *
 
+
 def error(lexer):
     nsiqcppstyle_reporter.Error(DummyToken(lexer.filename, "", 1, 0),
-            __name__, """Please provide file info comment in front of
+                                __name__, """Please provide file info comment in front of
             file. It includes license/copyright information along
             with filename, author, date of modification, version and
             a brief description""")
 
-def RunRule(lexer, filename, dirname) :
+
+def RunRule(lexer, filename, dirname):
 
     token = lexer.GetNextToken()
 
@@ -64,69 +67,78 @@ def RunRule(lexer, filename, dirname) :
             error(lexer)
             return
 
-        if token.value.lower().find("copyright") != -1 or token.value.lower().find("license") != -1:
+        if token.value.lower().find("copyright") != - \
+                1 or token.value.lower().find("license") != -1:
             return
 
         token = lexer.GetNextTokenSkipWhiteSpace()
 
+
 ruleManager.AddFileStartRule(RunRule)
 
-###########################################################################################
+##########################################################################
 # Unit Test
-###########################################################################################
+##########################################################################
 
-from nsiqunittest.nsiqcppstyle_unittestbase import *
+
 class testRule(nct):
     def setUpRule(self):
         ruleManager.AddFileStartRule(RunRule)
+
     def test1(self):
         self.Analyze("thisfile.c",
-"""// license
+                     """// license
 // copyright
 """)
-        assert not CheckErrorContent(__name__)
+        self.ExpectSuccess(__name__)
+
     def test2(self):
         self.Analyze("thisfile.c",
-"""/**
+                     """/**
 #if 0
 #endif
 license
 coryright */ """)
-        assert not CheckErrorContent(__name__)
+        self.ExpectSuccess(__name__)
+
     def test3(self):
         self.Analyze("thisfile.c",
-"""
+                     """
 // license
 // copyrigh1
 """)
-        assert CheckErrorContent(__name__)
+        self.ExpectError(__name__)
+
     def test4(self):
         self.Analyze("thisfile.c",
-"""#define "WEWE"
+                     """#define "WEWE"
 // license
 // copyrigh1
 #include </ewe/kk> """)
-        assert CheckErrorContent(__name__)
+        self.ExpectError(__name__)
+
     def test5(self):
         self.Analyze("thisfile.c",
-"""
+                     """
 #define "WEWE"
 // license
 // copyright
 #include </ewe/kk> """)
-        assert CheckErrorContent(__name__)
+        self.ExpectError(__name__)
+
     def test6(self):
         self.Analyze("thisfile.c",
-"""// license
+                     """// license
 // copyright
 #define "WEWE"
 #include </ewe/kk> """)
-        assert not CheckErrorContent(__name__)
+        self.ExpectSuccess(__name__)
+
     def test7(self):
         self.Analyze("thisfile.c",
-"""/*
+                     """/*
  * license
  * copyright
  */
 """)
-        assert not CheckErrorContent(__name__)
+        self.ExpectSuccess(__name__)

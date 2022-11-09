@@ -54,7 +54,7 @@ def PrepareReport(outputPath, format):
     elif format == "xml":
         if os.path.isdir(outputPath):
             outputPath = os.path.join(outputPath, "nsiqcppstyle_report.xml")
-        writer = open(outputPath, "wb")
+        writer = open(outputPath, "w")
         writer.write("<?xml version='1.0'?>\n<checkstyle version='4.4'>\n")
 
 

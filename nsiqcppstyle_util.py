@@ -65,6 +65,6 @@ def CmpObjects(a, b):
 
 def RemoveOuterQuotes(raw_string):
     final_string = raw_string.strip()
-    if final_string[0] == final_string[-1] and final_string[0] in [SINGLE_QUOTE, DOUBLE_QUOTE]:
+    if final_string and final_string[0] == final_string[-1] and final_string[0] in [SINGLE_QUOTE, DOUBLE_QUOTE]:
         final_string = final_string[1:-1].strip()
     return final_string

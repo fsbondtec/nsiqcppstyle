@@ -3,8 +3,7 @@ Provide the space before and after operators.
 There are variation to provide spaces.
 In the binary operator.
 Spaces should be provided before and after the operator.
-For example, +....
-For Division / and Modulo % no spaces need to be provided
+For Division /, Multiplication* and Modulo % no spaces need to be provided
 
 In the unary operator, Spaces should be provided before or after the operator.
 However, when it's used in the (AA++), [--BB], {--KK}. It's OK not to provide spaces.
@@ -115,7 +114,7 @@ def RunRule(lexer, contextStack):
                 t4 is None or t4.type != "FUNCTION"):
 
             # no space for following types
-            if t.type == "DIVIDE" or t.type == "MODULO":
+            if t.type == "DIVIDE" or t.type == "MODULO" or t.type == "PLUS":
                 return
 
             if t.pp == True and t.type == "DIVIDE":

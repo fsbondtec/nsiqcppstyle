@@ -28,11 +28,6 @@
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #
 from nsiqcppstyle_util import *
-try:
-    import hashlib  # @UnusedImport
-except ImportError:
-    import md5  # @UnusedImport
-
 
 if __name__ == "__main__":
     sys.path.append(GetRuntimePath())

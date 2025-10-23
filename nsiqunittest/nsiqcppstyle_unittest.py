@@ -26,30 +26,33 @@
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 import unittest
+
 import nsiqcppstyle_checker
-from nsiqcppstyle_outputer import _consoleOutputer as console
 import nsiqcppstyle_state
+from nsiqcppstyle_outputer import _consoleOutputer as console
 
 
 class unitTest(unittest.TestCase):
-    def __testFunctionSpecifier(self, specifier):
-        lexer = nsiqcppstyle_checker.CppLexerNavigator(
-            "a.cpp", "void FunctionName() " + specifier + ";")
+    @staticmethod
+    def __expectTokenTypes(code, expectedTokenTypes):
+        lexer = nsiqcppstyle_checker.CppLexerNavigator("a.cpp", code)
         # This step resolves comments and some token types like FUNCTION
         nsiqcppstyle_checker.ConstructContextInfo(lexer)
         lexer.Reset()
 
-        assert(lexer.GetNextTokenSkipWhiteSpaceAndComment().type == 'VOID')
-        assert(lexer.GetNextTokenSkipWhiteSpaceAndComment().type == 'FUNCTION')
-        assert(lexer.GetNextTokenSkipWhiteSpaceAndComment().type == 'LPAREN')
-        assert(lexer.GetNextTokenSkipWhiteSpaceAndComment().type == 'RPAREN')
-        # Specifier keyword
-        specifierToken = lexer.GetNextTokenSkipWhiteSpaceAndComment()
-        assert(specifierToken.type == 'IGNORE')
-        assert(specifierToken.value == specifier)
+        tokens = []
+        while True:
+            token = lexer.GetNextTokenSkipWhiteSpaceAndComment()
+            if token is None:
+                break
 
-        assert(lexer.GetNextTokenSkipWhiteSpaceAndComment().type == 'SEMI')
-        assert(lexer.GetNextTokenSkipWhiteSpaceAndComment() is None)
+            tokens.append(token.type)
+
+        assert expectedTokenTypes == tokens
+
+    def __testFunctionSpecifier(self, specifier):
+        expectedTokenTypes = ["VOID", "FUNCTION", "LPAREN", "RPAREN", "IGNORE", "SEMI"]
+        self.__expectTokenTypes("void FunctionName() " + specifier + ";", expectedTokenTypes)
 
     def testIgnoreFinalFunctionSpecifier(self):
         self.__testFunctionSpecifier("final")
@@ -60,68 +63,93 @@ class unitTest(unittest.TestCase):
     def testIgnoreNoexceptFunctionSpecifier(self):
         self.__testFunctionSpecifier("noexcept")
 
+    def testParseSpaceshipOperator(self):
+        expectedTokenTypes = [
+            "AUTO",
+            "FUNCTION",
+            "SPACESHIP",
+            "LPAREN",
+            "CONST",
+            "ID",
+            "AND",
+            "COMMA",
+            "CONST",
+            "ID",
+            "AND",
+            "RPAREN",
+            "SEMI",
+        ]
+        self.__expectTokenTypes("auto operator<=>(const P&, const P&);", expectedTokenTypes)
+
     def testGetPrevMatchingLT(self):
-        lexer = nsiqcppstyle_checker.CppLexerNavigator(
-            "a.cpp", "std::set<int> m;")
+        lexer = nsiqcppstyle_checker.CppLexerNavigator("a.cpp", "std::set<int> m;")
         # This step resolves comments and some token types like FUNCTION
         nsiqcppstyle_checker.ConstructContextInfo(lexer)
         lexer.Reset()
 
         ltToken = lexer.GetNextTokenInType("LT")
-        assert(ltToken is not None and ltToken.type == "LT")
+        assert ltToken is not None
+        assert ltToken.type == "LT"
         gtToken = lexer.GetNextTokenInType("GT")
-        assert(gtToken is not None and gtToken.type == "GT")
+        assert gtToken is not None
+        assert gtToken.type == "GT"
 
         matchingLtToken = lexer.GetPrevMatchingLT()
-        assert(matchingLtToken is not None and matchingLtToken.type == "LT")
-        assert(matchingLtToken.column == ltToken.column)
+        assert matchingLtToken is not None
+        assert matchingLtToken.type == "LT"
+        assert matchingLtToken.column == ltToken.column
 
     def testGetPrevMatchingLTWithInnerOnes(self):
-        lexer = nsiqcppstyle_checker.CppLexerNavigator(
-            "a.cpp", "std::map<std::set<int>, float> m;")
+        lexer = nsiqcppstyle_checker.CppLexerNavigator("a.cpp", "std::map<std::set<int>, float> m;")
         # This step resolves comments and some token types like FUNCTION
         nsiqcppstyle_checker.ConstructContextInfo(lexer)
         lexer.Reset()
 
         # Get the first < token
         ltToken = lexer.GetNextTokenInType("LT")
-        assert(ltToken is not None and ltToken.type ==
-               "LT" and ltToken.column == 9)
+        assert ltToken is not None
+        assert ltToken.type == "LT"
+        assert ltToken.column == 9
 
         # Get the first > token
         gtToken = lexer.GetNextTokenInType("GT")
-        assert(gtToken is not None and gtToken.type == "GT")
+        assert gtToken is not None
+        assert gtToken.type == "GT"
         # Get the second > token
         prevGtTokenColumn = gtToken.column
         gtToken = lexer.GetNextTokenInType("GT")
-        assert(gtToken is not None and gtToken.type ==
-               "GT" and gtToken.column != prevGtTokenColumn)
+        assert gtToken is not None
+        assert gtToken.type == "GT"
+        assert gtToken.column != prevGtTokenColumn
 
         # Expect the matching < token to be the first < token
         matchingLtToken = lexer.GetPrevMatchingLT()
-        assert(matchingLtToken is not None and matchingLtToken.type == "LT")
-        assert(matchingLtToken.column == ltToken.column)
+        assert matchingLtToken is not None
+        assert matchingLtToken.type == "LT"
+        assert matchingLtToken.column == ltToken.column
 
     def testGetPrevMatchingLTWithInner(self):
-        lexer = nsiqcppstyle_checker.CppLexerNavigator(
-            "a.cpp", "std::set<std::map<int, float>> m;")
+        lexer = nsiqcppstyle_checker.CppLexerNavigator("a.cpp", "std::set<std::map<int, float>> m;")
         # This step resolves comments and some token types like FUNCTION
         nsiqcppstyle_checker.ConstructContextInfo(lexer)
         lexer.Reset()
 
         # Get the first < token
         ltToken = lexer.GetNextTokenInType("LT")
-        assert(ltToken is not None and ltToken.type ==
-               "LT" and ltToken.column == 9)
+        assert ltToken is not None
+        assert ltToken.type == "LT"
+        assert ltToken.column == 9
 
         # Get the >> token
         gtToken = lexer.GetNextTokenInType("RSHIFT")
-        assert(gtToken is not None and gtToken.type == "RSHIFT")
+        assert gtToken is not None
+        assert gtToken.type == "RSHIFT"
 
         # Expect the matching < token to be the first < token
         matchingLtToken = lexer.GetPrevMatchingLT()
-        assert(matchingLtToken is not None and matchingLtToken.type == "LT")
-        assert(matchingLtToken.column == ltToken.column)
+        assert matchingLtToken is not None
+        assert matchingLtToken.type == "LT"
+        assert matchingLtToken.column == ltToken.column
 
     def test2(self):
         data = """
@@ -138,7 +166,7 @@ auto
 """
         navigator = nsiqcppstyle_checker.CppLexerNavigator("a.cpp", data)
 
-        while(True):
+        while True:
             tok = navigator.GetNextToken()
             if tok is None:
                 break
@@ -155,7 +183,7 @@ void function2() {
         navigator = nsiqcppstyle_checker.CppLexerNavigator("a.cpp", data)
         nsiqcppstyle_checker.ConstructContextInfo(navigator)
         navigator.Reset()
-        while(True):
+        while True:
             tok = navigator.GetNextTokenSkipWhiteSpaceAndComment()
             if tok is None:
                 break
@@ -174,7 +202,7 @@ int a;
         navigator = nsiqcppstyle_checker.CppLexerNavigator("a.cpp", data)
         nsiqcppstyle_checker.ConstructContextInfo(navigator)
         navigator.Reset()
-        while(True):
+        while True:
             tok = navigator.GetNextTokenSkipWhiteSpaceAndComment()
             if tok is None:
                 break
@@ -188,4 +216,5 @@ foo (bar*)[];
         nsiqcppstyle_checker.ConstructContextInfo(navigator)
         navigator.Reset()
         tok = navigator.GetNextTokenSkipWhiteSpaceAndComment()
-        assert(tok.type == 'ID' and tok.value == 'foo')
+        assert tok.type == "ID"
+        assert tok.value == "foo"

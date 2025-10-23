@@ -31,6 +31,7 @@ import sys
 SINGLE_QUOTE = "'"
 DOUBLE_QUOTE = '"'
 
+
 def WeAreFrozen():
     return hasattr(sys, "frozen")
 
@@ -43,20 +44,19 @@ def ModulePath():
 
 def GetRuntimePath():
     "Return the path of this tool"
-    if (sys.platform == "win32"):
+    if sys.platform == "win32":
         runtimePath = ModulePath()
     else:
-        modename = globals()['__name__']
+        modename = globals()["__name__"]
         module = sys.modules[modename]
         runtimePath = os.path.dirname(module.__file__)
     return runtimePath
 
 
 def GetSystemKey():
-    if (sys.platform == "win32"):
+    if sys.platform == "win32":
         return "window"
-    else:
-        return "linux"
+    return "linux"
 
 
 def CmpObjects(a, b):
@@ -65,6 +65,10 @@ def CmpObjects(a, b):
 
 def RemoveOuterQuotes(raw_string):
     final_string = raw_string.strip()
-    if final_string and final_string[0] == final_string[-1] and final_string[0] in [SINGLE_QUOTE, DOUBLE_QUOTE]:
+    if (
+        len(final_string) >= 2
+        and final_string[0] == final_string[-1]
+        and final_string[0] in [SINGLE_QUOTE, DOUBLE_QUOTE]
+    ):
         final_string = final_string[1:-1].strip()
     return final_string

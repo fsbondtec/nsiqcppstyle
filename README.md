@@ -1,6 +1,15 @@
+[![Tests CI](https://github.com/kunaltyagi/nsiqcppstyle/actions/workflows/tests.yml/badge.svg?branch=master)](https://github.com/kunaltyagi/nsiqcppstyle/actions/workflows/tests.yml)
 # About
 
 nsiqcppstyle is one of the most customizable cpp style checkers about.
+
+## Development
+Please install [hatch](hatch.pypa.io/) using `pip install hatch`. You can either use `hatch run <command>` or activate the virtual environment using `hatch shell <$SHELL>`
+
+Some handy commands:
+
+* `hatch run lint:fmt`: Format code
+* `hatch run update`: Update dependencies post change in `pyproject.toml`
 
 ## Features
 
@@ -18,6 +27,12 @@ nsiqcppstyle is one of the most customizable cpp style checkers about.
 
 ## Known limitations
 AFAIK, C++98, C++11 and C++14 code doesn't produce false positives. If you encounter some, please create an issue.
+Several features of C++20 onwards are not implemented yet. A non-exhaustive list is provided here:
+* Spaceship operator `<=>`
+* `requires`
+* concepts
+* modules
+
 There are a few corner cases where false positives are generated on a pure C code.
 
 One such known case is while returning ```struct``` from a function (See Issue #8).
@@ -141,6 +156,7 @@ Current Filter Setting (Following is applied sequentially)
   3. \tet\ is excluded
   4. \.cvs\ is excluded
   5. \.svn\ is excluded
+  6. \.git\ is excluded
 
 Current File extension and Language Settings
   C/C++=c,cxx,h,hpp,cpp,hxx
@@ -247,11 +263,24 @@ For example, If you provide
 * default
 - \
 + \src\
-- \src\test
+- **\test\
++ \src\*\test\
 ~ RULES....
 ```
 
-Above filefilter.txt make nsiqcppstyle analyze all source under \src\ except \src\test\.
+The filter rules (starting with `+` and `-`) are applied sequentially. This this situation, nsiqcppstyle will:
+
+* all source files under `src`
+* excluding any file under a `test` dir, top level or under `src` or any other folder/sub-folder
+* except in the `\src\<some directory>\test` directory
+
+This will reject `\src\test\main.cpp` and `\third_party\test` but accept `\src\third_party\test\main.cpp`
+
+### Pattern Maching
+Please use Python 3.13 or higher if you intend to make use of pattern matching for filter files. Backported functionality has limitations and will change behavior depending on python version.
+
+* `**` matches none or one-or-more sub-directories, irrespective of what characters they contain in their name
+* `*` matches any filename, except one with a directory separator
 
 ## Integration with CI
 

@@ -76,11 +76,13 @@ def RunRule(lexer, contextStack):
                 break
         
         # Also check for regular initializer list: Type var = {value1, value2}
-        # Look backwards for EQUALS before LBRACE
+        # or function arguments: func({value1, value2})
+        # Look backwards for EQUALS, LPAREN, or COMMA before LBRACE
         if not is_initializer_list:
             t_prev_skip = lexer.PeekPrevTokenSkipWhiteSpaceAndCommentAndPreprocess()
-            if t_prev_skip is not None and t_prev_skip.type == "EQUALS":
+            if t_prev_skip is not None and t_prev_skip.type in ["EQUALS", "LPAREN", "COMMA", "LBRACE"]:
                 # Check if after = we have an ID (variable name) before
+                # or if after ( or , we have a function call
                 for i in range(2, 10):
                     check_token = lexer.PeekPrevTokenSkipWhiteSpaceAndCommentAndPreprocess(i)
                     if check_token is None:
@@ -88,7 +90,7 @@ def RunRule(lexer, contextStack):
                     if check_token.type == "ID":
                         is_initializer_list = True
                         break
-                    if check_token.type in ["SEMI", "LBRACE", "RBRACE"]:
+                    if check_token.type in ["SEMI", "RBRACE"]:
                         break
         
         if is_initializer_list:
@@ -137,23 +139,28 @@ def RunRule(lexer, contextStack):
             if check_token.type in ["SEMI", "LBRACE"]:
                 # If we found LBRACE, might be a regular initializer list
                 if check_token.type == "LBRACE":
-                    # Check if before LBRACE there is EQUALS
+                    # Check if before LBRACE there is EQUALS, LPAREN, COMMA, or another LBRACE
                     for j in range(i + 1, i + 5):
                         prev_tok = lexer.PeekPrevTokenSkipWhiteSpaceAndCommentAndPreprocess(j)
                         if prev_tok is None:
                             break
-                        if prev_tok.type == "EQUALS":
+                        if prev_tok.type in ["EQUALS", "LPAREN", "COMMA", "LBRACE"]:
                             is_initializer_list = True
                             break
-                        if prev_tok.type in ["SEMI", "LBRACE", "RBRACE"]:
+                        if prev_tok.type in ["SEMI", "RBRACE"]:
                             break
                 break
         
         if is_initializer_list:
-            # Closing brace should NOT be preceded by space
+            # Closing brace should NOT be preceded by space (indentation OK)
             if t_prev is not None and t_prev.type == "SPACE":
-                nsiqcppstyle_reporter.Error(t, __name__,
-                    "No space allowed before closing brace in initializer list")
+                # Allow indentation: space before } is OK if } is first token on line
+                # Check if previous non-space token is on different line
+                t_prev_skip = lexer.PeekPrevTokenSkipWhiteSpaceAndCommentAndPreprocess()
+                if t_prev_skip is not None and t_prev_skip.lineno == t.lineno:
+                    # Same line - space violation
+                    nsiqcppstyle_reporter.Error(t, __name__,
+                        "No space before closing brace in initializer list")
     
     # Check for comma in initializer lists
     elif t.type == "COMMA":
@@ -413,6 +420,29 @@ MyStruct s = {
     field1,
     field2,
     field3
+};
+""")
+        self.ExpectSuccess(__name__)
+
+    def test11(self):
+        """Test nested initializer list in function argument with correct spacing."""
+        self.Analyze("test/thisFile.cpp", """
+auto result = SomeFunction({{Value(1, 2), Value(3, 4)}});
+""")
+        self.ExpectSuccess(__name__)
+
+    def test11a(self):
+        """Test spaces in nested initializer list are violations."""
+        self.Analyze("test/thisFile.cpp", """
+auto result = SomeFunction({ {  Value(1, 2),   Value(3, 4)  } });
+""")
+        self.ExpectError(__name__)
+
+    def test12(self):
+        """Test multiline nested initializer with correct spacing."""
+        self.Analyze("test/thisFile.cpp", """
+return std::optional<Result>{
+    Result{field1, field2}
 };
 """)
         self.ExpectSuccess(__name__)
